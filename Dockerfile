@@ -73,4 +73,5 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && docker-php-ext-enable imagick \
     && pecl install mysqlnd_ms-1.5.2 \
     && docker-php-ext-enable mysqlnd_ms \
-    && a2enmod rewrite
+    && a2enmod rewrite \
+    && a2enmod headers
