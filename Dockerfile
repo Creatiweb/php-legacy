@@ -112,7 +112,7 @@ RUN set -x \
 	&& rm php.tar.bz2* \
 	&& cd /usr/src/php \
 	&& ./buildconf --force \
-	&& ./configure --disable-cgi \
+	&& ./configure --disable-cgi --enable-calendar \
 		$(command -v apxs2 > /dev/null 2>&1 && echo '--with-apxs2' || true) \
     --with-config-file-path="$PHP_INI_DIR" \
     --with-config-file-scan-dir="$PHP_INI_DIR/conf.d" \
