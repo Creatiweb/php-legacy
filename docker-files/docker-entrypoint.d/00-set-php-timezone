@@ -1,7 +1,12 @@
 #!/bin/bash
 
+# diabled: this method is not portable, /etc/timezone is not present on some platforms (ex. GCP)
 # create php.ini snippet for setting timezone: use container timezone
-if [ -f /etc/timezone ]; then
-  LOCALTZ=$(head -n 1 /etc/timezone)
+#if [ -f /etc/timezone ]; then
+#  LOCALTZ=$(head -n 1 /etc/timezone)
+#  echo "date.timezone = \"${LOCALTZ}\"" > /usr/local/etc/php/conf.d/timezone.ini
+#fi
+
+if [ -n "${LOCALTZ}" ]; then
   echo "date.timezone = \"${LOCALTZ}\"" > /usr/local/etc/php/conf.d/timezone.ini
 fi
