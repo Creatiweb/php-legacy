@@ -1,7 +1,145 @@
 #!/bin/bash
 set -e
 
-# Apache gets grumpy about PID files pre-existing
-rm -f /var/run/apache2/apache2.pid
+if [ -n "$APACHE_CONFDIR" ] ; then
+	if [ "${APACHE_CONFDIR##/etc/apache2-}" != "${APACHE_CONFDIR}" ] ; then
+		DIR_SUFFIX="${APACHE_CONFDIR##/etc/apache2-}"
+	else
+		DIR_SUFFIX=
+	fi
+elif [ "${SCRIPTNAME##apache2-}" != "$SCRIPTNAME" ] ; then
+	DIR_SUFFIX="-${SCRIPTNAME##apache2-}"
+	APACHE_CONFDIR=/etc/apache2$DIR_SUFFIX
+else
+	DIR_SUFFIX=
+	APACHE_CONFDIR=/etc/apache2
+fi
+if [ -z "$APACHE_ENVVARS" ] ; then
+	APACHE_ENVVARS=$APACHE_CONFDIR/envvars
+fi
+export APACHE_CONFDIR APACHE_ENVVARS
 
-exec apache2 -DFOREGROUND
+ENV="env -i LANG=C PATH=/usr/local/bin:/usr/bin:/bin"
+if [ "$APACHE_CONFDIR" != /etc/apache2 ] ; then
+	ENV="$ENV APACHE_CONFDIR=$APACHE_CONFDIR"
+fi
+if [ "$APACHE_ENVVARS" != "$APACHE_CONFDIR/envvars" ] ; then
+	ENV="$ENV APACHE_ENVVARS=$APACHE_ENVVARS"
+fi
+
+
+#edit /etc/default/apache2 to change this.
+HTCACHECLEAN_RUN=auto
+HTCACHECLEAN_MODE=daemon
+HTCACHECLEAN_SIZE=300M
+HTCACHECLEAN_DAEMON_INTERVAL=120
+HTCACHECLEAN_PATH=/var/cache/apache2$DIR_SUFFIX/mod_disk_cache
+HTCACHECLEAN_OPTIONS=""
+
+APACHE_HTTPD=$(. $APACHE_ENVVARS && echo $APACHE_HTTPD)
+if [ -z "$APACHE_HTTPD" ] ; then
+	APACHE_HTTPD=/usr/sbin/apache2
+fi
+if [ ! -x $APACHE_HTTPD ] ; then
+	echo "No apache MPM package installed"
+	exit 0
+fi
+
+. /lib/lsb/init-functions
+
+test -f /etc/default/rcS && . /etc/default/rcS
+
+if [ -f /etc/default/apache2$DIR_SUFFIX ] ; then
+	. /etc/default/apache2$DIR_SUFFIX
+elif [ -f /etc/default/apache2 ] ; then
+	. /etc/default/apache2
+fi
+
+APACHE2CTL="$ENV /usr/sbin/apache2ctl"
+HTCACHECLEAN="$ENV /usr/sbin/htcacheclean"
+
+PIDFILE=$(. $APACHE_ENVVARS && echo $APACHE_PID_FILE)
+if [ -z "$PIDFILE" ] ; then
+	echo ERROR: APACHE_PID_FILE needs to be defined in $APACHE_ENVVARS >&2
+	exit 2
+fi
+
+# Apache gets grumpy about PID files pre-existing
+rm -f $PIDFILE
+
+# main configuration directory
+if test -z "$APACHE_CONFDIR" ; then
+	if test "${0##*apache2ctl-}" != "$0" ; then
+		APACHE_CONFDIR="/etc/apache2-${0##*apache2ctl-}"
+	else
+		APACHE_CONFDIR=/etc/apache2
+	fi
+fi
+# the path to the environment variable file
+test -z "$APACHE_ENVVARS" && APACHE_ENVVARS="$APACHE_CONFDIR/envvars"
+# pick up any necessary environment variables
+if test -f $APACHE_ENVVARS; then
+  . $APACHE_ENVVARS
+fi
+
+if test "$APACHE_CONFDIR" != /etc/apache2 ; then
+	APACHE_ARGUMENTS="-d $APACHE_CONFDIR $APACHE_ARGUMENTS"
+fi
+# the following APACHE_* variables should be set in /etc/apache2/envvars
+#
+# the path to your httpd binary, including options if necessary
+HTTPD=${APACHE_HTTPD:-/usr/sbin/apache2}
+#
+# a command that outputs a formatted text version of the HTML at the
+# url given on the command line.  Designed for lynx, however other
+# programs may work.  
+LYNX="${APACHE_LYNX:-www-browser -dump}"
+#
+# the URL to your server's mod_status status page.  If you do not
+# have one, then status and fullstatus will not work.
+STATUSURL="${APACHE_STATUSURL:-http://localhost:80/server-status}"
+#
+# Set this variable to a command that increases the maximum
+# number of file descriptors allowed per child process. This is
+# critical for configurations that use many file descriptors,
+# such as mass vhosting, or a multithreaded server.
+ULIMIT_MAX_FILES="${APACHE_ULIMIT_MAX_FILES:-ulimit -S -n `ulimit -H -n`}"
+# --------------------                              --------------------
+# ||||||||||||||||||||   END CONFIGURATION SECTION  ||||||||||||||||||||
+
+# Set the maximum number of file descriptors allowed per child process.
+if [ "x$ULIMIT_MAX_FILES" != "x" ] ; then
+    $ULIMIT_MAX_FILES
+fi
+
+mkdir_chown () {
+    local OWNER="$1"
+    local DIR="$2"
+    local STAT="$(LC_ALL=C stat -c %F:%U $DIR 2> /dev/null || true)"
+    if [ "$STAT" = "" ] ; then
+        local TMPNAME=$(mktemp -d $DIR.XXXXXXXXXX) || exit 1
+        chmod 755 $TMPNAME || exit 1
+        chown $OWNER $TMPNAME || exit 1
+        if ! mv -T $TMPNAME $DIR 2> /dev/null; then
+            rmdir $TMPNAME
+            # check for race with other apachectl
+            if [ "$(LC_ALL=C stat -c %F:%U $DIR 2>/dev/null)" != "directory:$OWNER" ]
+            then
+                echo Cannot create $DIR with owner $OWNER.
+                echo Please fix manually. Aborting.
+                exit 1
+            fi
+        fi
+    elif [ "$STAT" != "directory:$OWNER" ] ; then
+        echo $DIR already exists but is not a directory owned by $OWNER.
+        echo Please fix manually. Aborting.
+        exit 1
+    fi
+}
+
+mkdir -p ${APACHE_RUN_DIR:-/var/run/apache2}
+mkdir_chown ${APACHE_RUN_USER:-www-data} ${APACHE_LOCK_DIR:-/var/lock/apache2}
+# ssl_scache shouldn't be here if we're just starting up.
+# (this is bad if there are several apache2 instances running)
+rm -f ${APACHE_RUN_DIR:-/var/run/apache2}/*ssl_scache*
+exec $HTTPD ${APACHE_ARGUMENTS} -DFOREGROUND
