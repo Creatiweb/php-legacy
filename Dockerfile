@@ -18,6 +18,8 @@ RUN rm -f /var/www/index.html
 RUN mkdir -p /var/www/html
 ADD apache/default /etc/apache2/sites-available/default
 
+ADD php/suhosin.ini /etc/php5/conf.d/suhosin.ini
+
 # docker entrypoint scripts
 COPY docker-files/docker-php-entrypoint /usr/local/bin/
 COPY docker-files/apache2-foreground /usr/local/bin/
