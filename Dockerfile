@@ -75,3 +75,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && docker-php-ext-enable mysqlnd_ms \
     && a2enmod rewrite \
     && a2enmod headers
+
+# docker entrypoint scripts
+COPY docker-files/docker-php-entrypoint /usr/local/bin/
+RUN mkdir -p /docker-entrypoint.d
+COPY docker-files/docker-entrypoint.d/* /docker-entrypoint.d/
+RUN chmod 755 /usr/local/bin/docker-php-entrypoint /usr/local/bin/apache2-foreground
+RUN rm -f /docker-entrypoint.d/.gitkeep
+RUN if [ -f /docker-entrypoint.d/* ]; then chmod 755 /docker-entrypoint.d/*; fi
+
+ENTRYPOINT ["docker-php-entrypoint"]
+WORKDIR /var/www/html
+
+EXPOSE 80
+CMD ["apache2-foreground"]
