@@ -42,6 +42,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libsodium-dev \
         gnupg2 \
         wget \
+        vim \
         freetds-bin \
         freetds-dev \
         freetds-common \
