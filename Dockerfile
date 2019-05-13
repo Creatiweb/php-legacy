@@ -1,6 +1,6 @@
-FROM php:5.4-apache
+FROM php:5.4-fpm
 
-# Install required extension/packages
+RUN printf "deb http://archive.debian.org/debian/ jessie main\ndeb-src http://archive.debian.org/debian/ jessie main\ndeb http://security.debian.org jessie/updates main\ndeb-src http://security.debian.org jessie/updates main" > /etc/apt/sources.list
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libfreetype6-dev \
         libjpeg62-turbo-dev \
@@ -73,20 +73,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && pecl install imagick-3.3.0 \
     && docker-php-ext-enable imagick \
     && pecl install mysqlnd_ms-1.5.2 \
-    && docker-php-ext-enable mysqlnd_ms \
-    && a2enmod rewrite \
-    && a2enmod headers
+    && docker-php-ext-enable mysqlnd_ms 
 
 # docker entrypoint scripts
 COPY docker-files/docker-php-entrypoint /usr/local/bin/
 RUN mkdir -p /docker-entrypoint.d
 COPY docker-files/docker-entrypoint.d/* /docker-entrypoint.d/
-RUN chmod 755 /usr/local/bin/docker-php-entrypoint /usr/local/bin/apache2-foreground
+RUN chmod 755 /usr/local/bin/docker-php-entrypoint
 RUN rm -f /docker-entrypoint.d/.gitkeep
 RUN if [ -f /docker-entrypoint.d/* ]; then chmod 755 /docker-entrypoint.d/*; fi
 
-ENTRYPOINT ["docker-php-entrypoint"]
 WORKDIR /var/www/html
 
-EXPOSE 80
-CMD ["apache2-foreground"]
+CMD ["php-fpm"]
