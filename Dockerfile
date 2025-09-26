@@ -1,7 +1,7 @@
 FROM php:5.4-apache
 
 # Update debian source
-RUN printf "deb http://archive.debian.org/debian/ jessie main\ndeb-src http://archive.debian.org/debian/ jessie main\ndeb http://security.debian.org jessie/updates main\ndeb-src http://security.debian.org jessie/updates main" > /etc/apt/sources.list
+RUN printf "deb http://archive.debian.org/debian/ jessie main\ndeb-src http://archive.debian.org/debian/ jessie main\n" > /etc/apt/sources.list
 # Install required extension/packages
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libfreetype6-dev \
@@ -54,6 +54,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         pslib-dev \
         libmagickwand-dev \
         libmagickcore-dev \
+        ca-certificates \
     && docker-php-ext-install \
         iconv mcrypt tidy xmlrpc xsl gettext mbstring \
         intl mysql mysqli pspell recode snmp \
@@ -86,6 +87,8 @@ COPY docker-files/docker-entrypoint.d/* /docker-entrypoint.d/
 RUN chmod 755 /usr/local/bin/docker-php-entrypoint /usr/local/bin/apache2-foreground
 RUN rm -f /docker-entrypoint.d/.gitkeep
 RUN if [ -f /docker-entrypoint.d/* ]; then chmod 755 /docker-entrypoint.d/*; fi
+COPY R46Root.crt /usr/local/share/ca-certificates/
+RUN update-ca-certificates --verbose
 
 ENTRYPOINT ["docker-php-entrypoint"]
 WORKDIR /var/www/html
